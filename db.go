@@ -9,17 +9,19 @@ import (
 	_ "github.com/lib/pq"
 )
 
+//DBConnection opens a new db connection and returns the db to be used
+//Make sure to close the connection
 func DBConnection() *sqlx.DB {
 	if err := godotenv.Load(); err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
-	db_url := os.Getenv("DATABASE_URL")
-	if db_url == "" {
-		db_url = "postgres://michael@localhost/gotest?sslmode=disable"
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://michael@localhost/gotest?sslmode=disable"
 	}
 
-	db, err := sqlx.Open("postgres", db_url)
+	db, err := sqlx.Open("postgres", dbURL)
 
 	// Fail before returning db so it doesn't need to be checked elsewhere
 	if err != nil {

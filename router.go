@@ -1,18 +1,17 @@
 package main
 
 import (
-	"net/http"
-	// "os"
-
-	// "github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/justinas/alice"
+	"net/http"
 )
 
+// Router models the router with it's port that the server will bind too
 type Router struct {
 	Port string
 }
 
+// NewRouter sets up a new router with the given routes and middleware
 func (r *Router) NewRouter() http.Handler {
 	router := mux.NewRouter()
 	// db := DBConnection()

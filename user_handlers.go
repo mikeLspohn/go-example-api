@@ -2,75 +2,58 @@ package main
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/jmoiron/sqlx"
 	"github.com/pborman/uuid"
 )
 
+func getUserQuery(db *sqlx.DB, user User, id string, w http.ResponseWriter) {
+	if err := db.Get(&user, "SELECT * FROM users WHERE id=$1", id); err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+}
+
+// GetUser is the handler func for `GET /users/{id}`
 func GetUser(w http.ResponseWriter, r *http.Request) {
 	var user User
 	vars := mux.Vars(r)
 	id := vars["id"]
 	db := DBConnection()
 
-	if err := db.Get(&user, "SELECT * FROM users WHERE id=$1", id); err != nil {
-		log.Println("Error: ", err)
-		errResponse, err := MakeError(err)
-		if err != nil {
-			log.Println("Error creating error json response")
-		}
-
-		errjson, err := json.Marshal(&errResponse)
-		if err != nil {
-			log.Println("Can't marshal error to json")
-		}
-
-		w.WriteHeader(http.StatusNotFound)
-		w.Write(errjson)
-		return
-	}
-
+	getUserQuery(db, user, id, w)
 	if userJSON, err := json.Marshal(&user); err != nil {
-		log.Println("Error marshaling users data to json")
-		w.WriteHeader(500)
+		fmt.Println("Error marshaling users data to json")
+		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		log.Println("Retrieved users:", user)
+		fmt.Println("Retrieved users:", user)
 		w.Write(userJSON)
 	}
 }
 
+// GetUsers is the handler func for `GET /users`
 func GetUsers(w http.ResponseWriter, r *http.Request) {
 	db := DBConnection()
 	var users Users
 
 	if err := db.Select(&users, "SELECT * FROM users"); err != nil {
-		log.Println("Error:", err)
-
-		errResponse, err := MakeError(err)
-		if err != nil {
-			log.Println("Error ", err)
-		}
-
-		value, err := json.Marshal(&errResponse)
-		if err != nil {
-			log.Println("Can't marshal error to json")
-		}
-
-		w.WriteHeader(http.StatusNotFound)
-		w.Write(value)
+		MakeError(err, w)
 		return
 	}
 
 	if usersJSON, err := json.Marshal(&users); err != nil {
-		log.Println("Error: users json not valie")
+		fmt.Println("Error: users json not valie")
 	} else {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(usersJSON)
 	}
 }
 
+// DeleteUser is the handler func for `DELETE /users/{id}`
 func DeleteUser(w http.ResponseWriter, r *http.Request) {
 	db := DBConnection()
 	vars := mux.Vars(r)
@@ -80,20 +63,21 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 	rows := tx.MustExec("DELETE FROM users WHERE id = $1", id)
 	res, err := rows.RowsAffected()
 	if err != nil {
-		log.Println("Err deleting user. Error:", err)
+		fmt.Println("Err deleting user. Error:", err)
 	}
 	if res > 0 {
-		log.Println("Destroyed user with id:", id)
+		fmt.Println("Destroyed user with id:", id)
 	} else {
-		log.Println("User with that id wasn't found")
-		w.WriteHeader(404)
+		fmt.Println("User with that id wasn't found")
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	tx.Commit()
-	w.WriteHeader(204)
+	w.WriteHeader(http.StatusNoContent)
 }
 
+// CreateUser is the handler func for `POST /users`
 func CreateUser(w http.ResponseWriter, r *http.Request) {
 	var user User
 	id := uuid.New()
@@ -102,19 +86,14 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&user); err != nil {
-		log.Println("failed", err)
+		fmt.Println("failed", err)
 	}
 
 	tx := db.MustBegin()
 	_, err := db.Exec("INSERT INTO users (id, name, age) VALUES ($1, $2, $3) RETURNING id", id, user.Name, user.Age)
 
 	if err != nil {
-		if res, err := MakeError(err); err != nil {
-			w.WriteHeader(500)
-		} else {
-			w.WriteHeader(422)
-			w.Write(res)
-		}
+		MakeError(err, w)
 		return
 	}
 
@@ -123,15 +102,15 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 	user.SetID(id)
 	responseJSON, err := json.Marshal(user)
 	if err != nil {
-		log.Println("Couldn't marshal response json for user")
-		w.WriteHeader(500)
+		fmt.Println("Couldn't marshal response json for user")
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	log.Println("Response Data: " + string(responseJSON))
+	fmt.Println("Response Data: " + string(responseJSON))
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(201)
+	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(responseJSON); err != nil {
-		log.Println("Error responsing with user json: ", err.Error())
+		fmt.Println("Error responsing with user json: ", err.Error())
 	}
 }
