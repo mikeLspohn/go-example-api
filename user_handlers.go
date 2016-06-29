@@ -9,11 +9,6 @@ import (
 	"github.com/pborman/uuid"
 )
 
-// just for json error messages
-type JSONErr struct {
-	Message string
-}
-
 func GetUser(w http.ResponseWriter, r *http.Request) {
 	var user User
 	vars := mux.Vars(r)
@@ -22,9 +17,11 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 
 	if err := db.Get(&user, "SELECT * FROM users WHERE id=$1", id); err != nil {
 		log.Println("Error: ", err)
-		message := "User with id " + id + " was not found"
+		errResponse, err := MakeError(err)
+		if err != nil {
+			log.Println("Error creating error json response")
+		}
 
-		errResponse := JSONErr{Message: message}
 		errjson, err := json.Marshal(&errResponse)
 		if err != nil {
 			log.Println("Can't marshal error to json")
@@ -50,8 +47,13 @@ func GetUsers(w http.ResponseWriter, r *http.Request) {
 
 	if err := db.Select(&users, "SELECT * FROM users"); err != nil {
 		log.Println("Error:", err)
-		errjson := JSONErr{Message: "No users found"}
-		value, err := json.Marshal(&errjson)
+
+		errResponse, err := MakeError(err)
+		if err != nil {
+			log.Println("Error ", err)
+		}
+
+		value, err := json.Marshal(&errResponse)
 		if err != nil {
 			log.Println("Can't marshal error to json")
 		}
